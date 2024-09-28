@@ -260,7 +260,7 @@ VOID ReadyForGPU()
 
     if (hmodNvapi == 0)
     {
-        printf("no nvapi %u\n", GetLastError());
+       // printf("no nvapi %u\n", GetLastError());
         return;
     }
 
@@ -268,7 +268,7 @@ VOID ReadyForGPU()
 
     if (NvAPI_QueryInterface == NULL)
     {
-        printf("unable to location nvapi_QueryInterface\n");
+        //printf("unable to location nvapi_QueryInterface\n");
         FreeLibrary(hmodNvapi);
         hmodNvapi = 0;
         return;
@@ -284,7 +284,7 @@ VOID ReadyForGPU()
 
     if (NvAPI_Initialize == 0 || NvAPI_GPU_GetFullName == 0 || NvAPI_GPU_GetThermalSettings == 0 || NvAPI_EnumPhysicalGPUs == 0 || NvAPI_GetErrorMessage == 0)
     {
-        printf("unable to init basic nvapis\n");
+       // printf("unable to init basic nvapis\n");
         FreeLibrary(hmodNvapi);
         hmodNvapi = 0;
         return;
@@ -292,7 +292,7 @@ VOID ReadyForGPU()
 
     if (NvAPI_GPU_GetTempIndex == 0 || NvAPI_GPU_GetTemperatureEx == 0)
     {
-        printf("unable to init undocumented temperature nvapis\n");
+       // printf("unable to init undocumented temperature nvapis\n");
         FreeLibrary(hmodNvapi);
         hmodNvapi = 0;
         return;
@@ -304,7 +304,7 @@ VOID ReadyForGPU()
     if (Status != NVAPI_OK)
     {
         NvAPI_GetErrorMessage(Status, ErrorMsg);
-        printf("Failed to init NVAPI, Reason: %s\n", ErrorMsg);
+        //printf("Failed to init NVAPI, Reason: %s\n", ErrorMsg);
         FreeLibrary(hmodNvapi);
         hmodNvapi = 0;
         return;
@@ -315,7 +315,7 @@ VOID ReadyForGPU()
     if (Status != NVAPI_OK)
     {
         NvAPI_GetErrorMessage(Status, ErrorMsg);
-        printf("Failed to enum physical GPUs, Reason: %s\n", ErrorMsg);
+        //printf("Failed to enum physical GPUs, Reason: %s\n", ErrorMsg);
         FreeLibrary(hmodNvapi);
         hmodNvapi = 0;
         return;
@@ -330,7 +330,7 @@ VOID ReadyForGPU()
         if (Status != NVAPI_OK)
         {
             NvAPI_GetErrorMessage(Status, ErrorMsg);
-            printf("Failed to get GPU full name for GPU%u, Reason: %s\n", n, ErrorMsg);
+            //printf("Failed to get GPU full name for GPU%u, Reason: %s\n", n, ErrorMsg);
             FreeLibrary(hmodNvapi);
             hmodNvapi = 0;
             return;
