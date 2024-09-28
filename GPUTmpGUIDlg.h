@@ -43,7 +43,7 @@ private:
 		int coreTemp;
 		int hotspotTemp;
 		int memoryTemp;
-		CString timeLabel;
+		WCHAR timeLabel[20];
 	};
 
 	std::vector<TemperatureData> temperatureHistory;
@@ -51,6 +51,17 @@ private:
 	int CalculateTemperature(CPoint point);
 	CBrush hoverInfoBackgroundBrush; // 添加背景刷
 	CFont m_hoverInfoFont;
+
+	Graphics* m_pGraphics;
+	SolidBrush* m_pBrush, * m_pBrush2, * m_pTextBrush;
+	Pen* m_pAxisPen, * m_pGridPen, * m_pCorePen, * m_pHotspotPen, * m_pMemoryPen;
+	FontFamily* m_pFontFamily;
+	Gdiplus::Font* m_pFont, * m_pFont2;
+
+	CBitmap m_bitmap;
+	CDC m_memDC;
+
+
 public:
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 

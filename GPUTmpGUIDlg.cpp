@@ -260,7 +260,7 @@ VOID ReadyForGPU()
 
     if (hmodNvapi == 0)
     {
-       // printf("no nvapi %u\n", GetLastError());
+        //printf("no nvapi %u\n", GetLastError());
         return;
     }
 
@@ -284,7 +284,7 @@ VOID ReadyForGPU()
 
     if (NvAPI_Initialize == 0 || NvAPI_GPU_GetFullName == 0 || NvAPI_GPU_GetThermalSettings == 0 || NvAPI_EnumPhysicalGPUs == 0 || NvAPI_GetErrorMessage == 0)
     {
-       // printf("unable to init basic nvapis\n");
+        //printf("unable to init basic nvapis\n");
         FreeLibrary(hmodNvapi);
         hmodNvapi = 0;
         return;
@@ -292,7 +292,7 @@ VOID ReadyForGPU()
 
     if (NvAPI_GPU_GetTempIndex == 0 || NvAPI_GPU_GetTemperatureEx == 0)
     {
-       // printf("unable to init undocumented temperature nvapis\n");
+        //printf("unable to init undocumented temperature nvapis\n");
         FreeLibrary(hmodNvapi);
         hmodNvapi = 0;
         return;
@@ -358,6 +358,7 @@ VOID UpdateGPUTemp()
     CHAR Number[50];
     NV_API_TEMP_INDEX TempIndex;
     NV_API_ADV_TEMPERATURE AdvTemp;
+    
 
     //WCHAR ww[100];
     //swprintf_s(ww, 100, L"core:%u, hotspot:%u mem:%u\n", coreTemp, hotspotTemp, memoryTemp);
@@ -374,7 +375,7 @@ VOID UpdateGPUTemp()
         if (Status != NVAPI_OK)
         {
             NvAPI_GetErrorMessage(Status, ErrorMsg);
-            printf("Failed to get GPU thermal settings for GPU%u, Reason: %s\n", n, ErrorMsg);
+            //printf("Failed to get GPU thermal settings for GPU%u, Reason: %s\n", n, ErrorMsg);
             return;
         }
 
@@ -526,11 +527,39 @@ CGPUTmpGUIDlg::CGPUTmpGUIDlg(CWnd* pParent /*=nullptr*/)
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
 
+    // 创建 GDI+ 对象
+    m_pBrush = new SolidBrush(Color(255, 0, 0, 0));
+    m_pBrush2 = new SolidBrush(Color(255, 255, 255, 255)); // 黑色
+    m_pTextBrush = new SolidBrush(Color(255, 255, 255, 255));
+    m_pAxisPen = new Pen(Color(255, 0, 0, 0), 2);
+    m_pGridPen = new Pen(Color(100, 200, 200, 200));
+    // 创建更粗的画笔
+    m_pCorePen = new Pen(Color(255, 255, 0, 0), 2.0f);     // 红色，宽度 2 像素
+    m_pHotspotPen = new Pen(Color(255, 0, 255, 0), 2.0f);  // 绿色，宽度 2 像素
+    m_pMemoryPen = new Pen(Color(255, 0, 255, 255), 2.0f); // 青色（Cyan），宽度 2 像素
+    m_pFontFamily = new FontFamily(L"Arial");
+    m_pFont = new Gdiplus::Font(m_pFontFamily, 14, FontStyleRegular, UnitPixel);
+    m_pFont2 = new Gdiplus::Font(m_pFontFamily, 18, FontStyleRegular, UnitPixel);
+
+
 }
 
 // 析构函数
 CGPUTmpGUIDlg::~CGPUTmpGUIDlg()
 {
+    delete m_pGraphics;
+    delete m_pBrush;
+    delete m_pBrush2;
+    delete m_pTextBrush;
+    delete m_pAxisPen;
+    delete m_pGridPen;
+    delete m_pCorePen;
+    delete m_pHotspotPen;
+    delete m_pMemoryPen;
+    delete m_pFontFamily;
+    delete m_pFont;
+    delete m_pFont2;
+
 	GdiplusShutdown(gdiplusToken);
 }
 void CGPUTmpGUIDlg::DoDataExchange(CDataExchange* pDX)
@@ -548,6 +577,7 @@ BEGIN_MESSAGE_MAP(CGPUTmpGUIDlg, CDialogEx)
     ON_WM_ERASEBKGND()
 END_MESSAGE_MAP()
 
+CStringW wText;
 
 // CGPUTmpGUIDlg 消息处理程序
 
@@ -588,6 +618,7 @@ BOOL CGPUTmpGUIDlg::OnInitDialog()
 
 
     ReadyForGPU();
+    wText = GPUName;
     hoverInfo.Create(L"", WS_CHILD | SS_CENTER, CRect(0,0,120,60), this);
     hoverInfoBackgroundBrush.CreateSolidBrush(RGB(255, 255, 255));
         // 创建字体
@@ -597,7 +628,7 @@ BOOL CGPUTmpGUIDlg::OnInitDialog()
     hoverInfo.SetFont(&m_hoverInfoFont);
     hoverInfo.ShowWindow(SW_HIDE);
 
-	SetTimer(1, 500, nullptr); // 每秒更新一次
+	SetTimer(1, 1000, nullptr); // 每秒更新一次
 
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
@@ -631,30 +662,22 @@ void CGPUTmpGUIDlg::OnPaint()
         GetDlgItem(IDC_GRAPH)->GetWindowRect(&rect);
         ScreenToClient(&rect);
 
-        CDC memDC;
-        memDC.CreateCompatibleDC(&dc);
-        CBitmap bmp;
-        bmp.CreateCompatibleBitmap(&dc, rect.Width(), rect.Height());
-        CBitmap* pOldBmp = memDC.SelectObject(&bmp);
+    
+        if (m_memDC.GetSafeHdc() == NULL)
+        {
+            m_memDC.CreateCompatibleDC(&dc);
+            m_bitmap.CreateCompatibleBitmap(&dc, rect.Width(), rect.Height());
+            m_memDC.SelectObject(&m_bitmap);
+            delete m_pGraphics;  // 删除旧的 Graphics 对象（如果存在）
+            m_pGraphics = new Graphics(m_memDC.GetSafeHdc());
+        }
 
-        Graphics graphics(memDC.GetSafeHdc());
-        SolidBrush brush(Color(255, 0, 0, 0));
-        graphics.FillRectangle(&brush, 0, 0, rect.Width(), rect.Height());
-
-        Pen axisPen(Color(255, 0, 0, 0), 2);
-        Pen gridPen(Color(100, 200, 200, 200)); // 半透明灰色网格线
-        Pen corePen(Color(255, 255, 0, 0));
-        Pen hotspotPen(Color(255, 0, 255, 0));
-        Pen memoryPen(Color(255, 0, 0, 255));
+        m_pGraphics->FillRectangle(m_pBrush, 0, 0, rect.Width(), rect.Height());
 
         int leftMargin = 40;
         int bottomMargin = 40;
         int rightMargin = 10;
         int topMargin = 10;
-
-        FontFamily fontFamily2(L"Arial");
-        Gdiplus::Font font2(&fontFamily2, 18, FontStyleRegular, UnitPixel);
-        SolidBrush brush2(Color(255, 255, 255, 255)); // 黑色
 
         // 确定文本位置
         int textX = rect.Width() - 260; // 根据文本宽度调整
@@ -662,11 +685,11 @@ void CGPUTmpGUIDlg::OnPaint()
 
         // 绘制文本
         CStringW wText(GPUName);
-        graphics.DrawString(wText, -1, &font2, PointF(textX, textY), &brush2);
+        m_pGraphics->DrawString(wText, -1, m_pFont2, PointF(textX, textY), m_pBrush2);
 
 
-        graphics.DrawLine(&axisPen, leftMargin, rect.Height() - bottomMargin, rect.Width() - rightMargin, rect.Height() - bottomMargin);
-        graphics.DrawLine(&axisPen, leftMargin, rect.Height() - bottomMargin, leftMargin, topMargin);
+        m_pGraphics->DrawLine(m_pAxisPen, leftMargin, rect.Height() - bottomMargin, rect.Width() - rightMargin, rect.Height() - bottomMargin);
+        m_pGraphics->DrawLine(m_pAxisPen, leftMargin, rect.Height() - bottomMargin, leftMargin, topMargin);
 
         int graphHeight = rect.Height() - topMargin - bottomMargin;
         int graphWidth = rect.Width() - leftMargin - rightMargin;
@@ -675,36 +698,32 @@ void CGPUTmpGUIDlg::OnPaint()
         // 绘制网格
         for (int i = 0; i <= 10; ++i) {
             int y = rect.Height() - bottomMargin - i * graphHeight / 10;
-            graphics.DrawLine(&gridPen, leftMargin, y, rect.Width() - rightMargin, y);
+            m_pGraphics->DrawLine(m_pGridPen, leftMargin, y, rect.Width() - rightMargin, y);
         }
         for (int i = 0; i <= temperatureHistory.size() - 1; ++i) {
             int x = leftMargin + i * pointSpacing;
-            graphics.DrawLine(&gridPen, x, rect.Height() - bottomMargin, x, topMargin);
+            m_pGraphics->DrawLine(m_pGridPen, x, rect.Height() - bottomMargin, x, topMargin);
         }
-
-        FontFamily fontFamily(L"Arial");
-        Gdiplus::Font font(&fontFamily, 14, FontStyleRegular, UnitPixel);
-        SolidBrush textBrush(Color(255, 255, 255, 255));
 
         for (size_t i = 0; i < temperatureHistory.size() - 1; ++i) {
             const auto& data1 = temperatureHistory[i];
             const auto& data2 = temperatureHistory[i + 1];
 
-            graphics.DrawLine(&corePen,
+            m_pGraphics->DrawLine(m_pCorePen,
                 leftMargin + i * pointSpacing, rect.Height() - bottomMargin - (data1.coreTemp * graphHeight / 100),
                 leftMargin + (i + 1) * pointSpacing, rect.Height() - bottomMargin - (data2.coreTemp * graphHeight / 100));
 
-            graphics.DrawLine(&hotspotPen,
+            m_pGraphics->DrawLine(m_pHotspotPen,
                 leftMargin + i * pointSpacing, rect.Height() - bottomMargin - (data1.hotspotTemp * graphHeight / 100),
                 leftMargin + (i + 1) * pointSpacing, rect.Height() - bottomMargin - (data2.hotspotTemp * graphHeight / 100));
 
-            graphics.DrawLine(&memoryPen,
+            m_pGraphics->DrawLine(m_pMemoryPen,
                 leftMargin + i * pointSpacing, rect.Height() - bottomMargin - (data1.memoryTemp * graphHeight / 100),
                 leftMargin + (i + 1) * pointSpacing, rect.Height() - bottomMargin - (data2.memoryTemp * graphHeight / 100));
 
             if (i % (temperatureHistory.size() / 5) == 0) {
                 PointF timePoint(leftMargin + i * pointSpacing, rect.Height() - bottomMargin + 10);
-                graphics.DrawString(data1.timeLabel, -1, &font, timePoint, &textBrush);
+                m_pGraphics->DrawString(data1.timeLabel, -1, m_pFont, timePoint, m_pTextBrush);
             }
         }
 
@@ -712,12 +731,13 @@ void CGPUTmpGUIDlg::OnPaint()
             CString tempLabel;
             tempLabel.Format(L"%d", temp);
             PointF pointF(10, rect.Height() - bottomMargin - (temp * graphHeight / 100));
-            graphics.DrawString(tempLabel, -1, &font, pointF, &textBrush);
+            m_pGraphics->DrawString(tempLabel, -1, m_pFont, pointF, m_pTextBrush);
         }
 
-        dc.BitBlt(rect.left, rect.top, rect.Width(), rect.Height(), &memDC, 0, 0, SRCCOPY);
+        dc.BitBlt(rect.left, rect.top, rect.Width(), rect.Height(), &m_memDC, 0, 0, SRCCOPY);
 
-        memDC.SelectObject(pOldBmp);
+       // m_memDC.SelectObject(pOldBmp);
+        m_pGraphics->Flush(FlushIntentionFlush);
 
 
     }
@@ -765,12 +785,19 @@ void CGPUTmpGUIDlg::UpdateTemperatureData()
 
     SYSTEMTIME time;
     GetLocalTime(&time);
-    newData.timeLabel.Format(L"%02d:%02d:%02d", time.wHour,time.wMinute, time.wSecond);
+    WCHAR timeLabel[20];
+
+    swprintf_s(timeLabel, L"%02d:%02d:%02d", time.wHour, time.wMinute, time.wSecond);
+    wcscpy_s(newData.timeLabel, timeLabel);
 
     temperatureHistory.push_back(newData);
 
+  
     if (temperatureHistory.size() > 50) {
+   
         temperatureHistory.erase(temperatureHistory.begin());
+
+
     }
 }
 
@@ -826,7 +853,7 @@ int CGPUTmpGUIDlg::CalculateTemperature(CPoint point)
                 if (rect.PtInRect(nearbyPoint)) {
                     COLORREF color = dc.GetPixel(nearbyPoint);
 
-                    if (color == RGB(255, 0, 0) || color == RGB(0, 255, 0) || color == RGB(0, 0, 255)) {
+                    if (color == RGB(255, 0, 0) || color == RGB(0, 255, 0) || color == RGB(0, 255, 255)) {
                         foundY = nearbyPoint.y;
                         break;
                     }
@@ -879,7 +906,7 @@ void CGPUTmpGUIDlg::OnMouseMove(UINT nFlags, CPoint point)
                             info.Format(L"Hotspot: %d°C", temperature+1);
                         break;
                     }
-                    else if (color == RGB(0, 0, 255)) { // 蓝色
+                    else if (color == RGB(0, 255, 255)) { // 青色
                         int temperature = CalculateTemperature(point);
                         if (temperature)
                             info.Format(L"Memory: %d°C", temperature+1);
